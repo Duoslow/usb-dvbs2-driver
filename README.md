@@ -1,5 +1,12 @@
 # usb-dvbs2-driver
 
+> **Fork of [xacnio/usb-dvbs2-driver](https://github.com/xacnio/usb-dvbs2-driver)**
+> with working support for the **Next Kanky Link USB Bridge 4K** (`23E2:5270`):
+> the bridge power/reset sequence, the tuner start-up tables and signal
+> strength from the Kanky's own Android application. It is tested daily on a
+> live dish (Türksat 42°E) on Windows and Linux. See
+> [Next Kanky Link](#next-kanky-link) below.
+
 An SDK for a USB DVB-S/S2 receiver on Windows, Linux and macOS: the drivers,
 an engine that runs the receiver in-process, a daemon that puts the engine
 behind a local command channel, a client library for programs that start and
@@ -19,11 +26,9 @@ DVB-S/S2/S2X demodulator, RDA5815M tuner):
 | Receiver | USB id | Profile | Status |
 | --- | --- | --- | --- |
 | Hiremco / SuperDTV UDTV (Hiremco Magic USB-A DVB-S2 4K) | `048D:F036` | `hiremco-it9303-avl6261-rda5815m` | developed and tested against |
-| Next Kanky Link USB Bridge 4K | `23E2:5270` | `kanky-link-it9303-avl6261-rda5815m` | new; lock and streaming not yet confirmed |
+| Next Kanky Link USB Bridge 4K | `23E2:5270` | `kanky-link-it9303-avl6261-rda5815m` | lock, streaming and EPG confirmed (this fork) |
 
-The Kanky Link has been brought up to *Hardware ready* by a user, with the
-Hiremco firmware; with its own firmware, and with a satellite signal, it has
-not been tried yet. `--profile auto` picks whichever receiver is plugged in.
+`--profile auto` picks whichever receiver is plugged in.
 
 Other USB receivers that look similar are not guaranteed to work: everything
 above the USB layer is ordinary DVB, the same on any DVB-S2 receiver, but
@@ -59,6 +64,60 @@ the firmware, only transfers it to the device in the order the application
 does, and every file is checked against its size and SHA-256 before it is.
 Their rights belong to their respective holders; this repository's license
 does not cover them.
+
+## Next Kanky Link
+
+The Kanky Link USB Bridge 4K carries an IT9306 bridge (it speaks the IT9303
+protocol), an AVL6261 demodulator and an RDA5815M tuner. Compared with the
+Hiremco it needs, all taken from `libdvb_usb_phy.so` in the Kanky Link app:
+
+- **Bridge power and reset.** Unless the bridge registers are set right after
+  the firmware boot, the bridge resets itself. The tuner and LNB power rail is
+  on GPIO14 (GPIO5 on the Hiremco). The last four fields of the hardware
+  profile hold these settings.
+- **Tuner start-up.** The RDA5815M start-up tables are selected by chip id,
+  with loop-through on.
+- **Signal strength.** The RF AGC word (low = strong) is reported as
+  `status.rf_agc` and as `agc` in the CLI. SNR and AGC are read live rather
+  than kept from lock time.
+- **UDP.** Every datagram carries up to `UDP_TS_PACKETS` TS packets.
+
+### Windows
+
+1. Plug the receiver in. Then, in [Zadig](https://zadig.akeo.ie/), choose
+   *Options → List All Devices*, pick the device with USB ID `23E2 5270`, and
+   install **WinUSB**.
+2. Take the Windows package from the releases, or build it as under
+   [Building](#building). Keep `libusb-1.0.dll` and `firmware/` beside the
+   executables.
+3. Run:
+
+   ```powershell
+   .\usb-dvbs2.exe --profile auto
+   ```
+
+   then `tune_rf 11794 30000 V`, `status`, and play `udp://127.0.0.1:5560`
+   in VLC, mpv or ffplay.
+
+### Linux
+
+```sh
+sudo cp packaging/linux/60-usb-dvbs2.rules /etc/udev/rules.d/
+sudo udevadm control --reload-rules && sudo udevadm trigger
+# plug the receiver in again, then
+./usb-dvbs2 --profile auto
+```
+
+In Docker, pass the USB bus to the container (`--device /dev/bus/usb`) and
+run the daemon inside it.
+
+### Tips
+
+- Every daemon start does a USB reset, uploads the firmware and powers the
+  LNB, so keep starts rare. Don't stop the daemon in the middle of a tune:
+  that can wedge the dongle until you unplug it.
+- On a DiSEqC switch, give the port as the last argument of `tune_rf`
+  (`help` shows the syntax).
 
 ## Layout
 
