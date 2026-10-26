@@ -193,6 +193,7 @@ static dtv_atomic32 g_lnb_relight;
 static dtv_atomic32 g_status_fec;
 static dtv_atomic32 g_status_frame;
 static dtv_atomic32 g_status_snr_x100 = -10000;
+static dtv_atomic32 g_status_rf_agc = 0xffff;
 static dtv_atomic32 g_status_sr_hz;
 static char g_sat_date[16];
 static char g_sat_time[16];
@@ -713,9 +714,11 @@ static int daemon_cold_init(const dtv_hardware_profile *profile,
         return -1;
     log_stage(15, "Loading USB bridge firmware");
     if (it9300_query_fw_version(&g_bridge) != 0 &&
-        load_file_to_bridge(&g_bridge, profile->bridge_firmware, 0) != 0)
+        ((profile->bridge_preboot_clear &&
+          it9300_preboot_clear(&g_bridge) != 0) ||
+         load_file_to_bridge(&g_bridge, profile->bridge_firmware, 0) != 0))
         return -1;
-    if (it9300_bridge_init(&g_bridge) != 0)
+    if (it9300_bridge_init_power(&g_bridge, profile->power_gpio) != 0)
         return -1;
     g_bridge.i2c_bus = profile->bridge_i2c_bus;
     /* The GPIO reset erases the demod firmware, so it is reloaded below. */
@@ -754,13 +757,20 @@ static int daemon_cold_init(const dtv_hardware_profile *profile,
         return -1;
     }
     log_stage(70, "Starting tuner");
-    rc = rda5815m_init(&g_bridge, TUNER_ADDR);
+    if (profile->tuner_kanky_init) {
+        uint16_t tuner_id = 0;
+        rc = rda5815m_init_kanky(&g_bridge, TUNER_ADDR, &tuner_id);
+        log_linef("RDA5815M chip id %04x\n", (unsigned)tuner_id);
+    } else {
+        rc = rda5815m_init(&g_bridge, TUNER_ADDR);
+    }
     avl62x1_set_tuner_i2c(&g_bridge, DEMOD_ADDR, 0);
     if (rc != 0) {
         avl62x1_set_cold_init_pacing(0);
         return -1;
     }
-    if (avl62x1_init_demod_input(&g_bridge, DEMOD_ADDR, 0) != 0) {
+    if (avl62x1_init_demod_input(&g_bridge, DEMOD_ADDR,
+                                 profile->demod_spectrum_inverted) != 0) {
         avl62x1_set_cold_init_pacing(0);
         return -1;
     }
@@ -870,7 +880,8 @@ static int daemon_tune(uint32_t freq_khz, uint32_t sr_ksps, uint32_t lnb_v,
     rc = avl62x1_set_tuner_i2c(&g_bridge, DEMOD_ADDR, 1);
     if (rc == 0)
         rc = rda5815m_tune(&g_bridge, TUNER_ADDR, freq_khz,
-                           blind ? BLIND_FILTER_KSPS : sr_ksps, 0);
+                           blind ? BLIND_FILTER_KSPS : sr_ksps,
+                           g_profile->tuner_kanky_init);
     avl62x1_set_tuner_i2c(&g_bridge, DEMOD_ADDR, 0);
     if (rc != 0) { error_linef("tune rc=%d\n", rc); return -1; }
 
@@ -916,6 +927,7 @@ static int daemon_tune(uint32_t freq_khz, uint32_t sr_ksps, uint32_t lnb_v,
             dtv_atomic_set(&g_status_fec, st.fec_locked);
             dtv_atomic_set(&g_status_frame, st.frame_locked);
             dtv_atomic_set(&g_status_snr_x100, st.snr_db_x100);
+            dtv_atomic_set(&g_status_rf_agc, st.rf_agc);
             dtv_atomic_set(&g_status_sr_hz, (int32_t)st.symbol_rate_hz);
             /* LOCK can be raised before the FEC/SNR registers follow, so
              * wait for two complete samples to keep a transient
@@ -945,6 +957,13 @@ static int daemon_tune(uint32_t freq_khz, uint32_t sr_ksps, uint32_t lnb_v,
     g_uncommitted = uncommitted; g_burst = burst; g_repeat = repeat;
     if (locked) { dtv_atomic_set(&g_tuned, 1); log_stage(100, "Broadcast ready"); }
     else log_line("No lock was achieved.\n");
+    {
+        /* libdvb_usb_phy.so AVL62X1_GetSignalStrength: RF AGC word 0xe8. */
+        uint16_t agc = 0;
+        if (avl62x1_read16(&g_bridge, DEMOD_ADDR, 0x0000e8, &agc) == 0)
+            log_linef("RF AGC 0x%04x (freq %lu kHz)\n", (unsigned)agc,
+                      (unsigned long)freq_khz);
+    }
     return locked ? 0 : 1;
 }
 
@@ -1984,6 +2003,22 @@ void usb_dvbs2_engine_get_status(usb_dvbs2_engine_status *status)
 {
     dtv_camd_status camd_status;
     memset(status, 0, sizeof(*status));
+    /* Live signal: a signal meter wants the SNR and AGC of now, not those of
+     * the moment the carrier locked. g_tune_lock keeps this read off the
+     * bridge while a (re)tune is using it. */
+    if (dtv_atomic_get(&g_tuned)) {
+        avl62x1_signal_status st;
+        dtv_mutex_lock(&g_tune_lock);
+        if (avl62x1_get_signal_status(&g_bridge, DEMOD_ADDR, &st) == 0) {
+            dtv_atomic_set(&g_status_locked, st.locked);
+            dtv_atomic_set(&g_status_fec, st.fec_locked);
+            dtv_atomic_set(&g_status_frame, st.frame_locked);
+            if (st.locked)
+                dtv_atomic_set(&g_status_snr_x100, st.snr_db_x100);
+            dtv_atomic_set(&g_status_rf_agc, st.rf_agc);
+        }
+        dtv_mutex_unlock(&g_tune_lock);
+    }
     dtv_mutex_lock(&g_lock);
     if (g_sat_utc_filetime && g_sat_received_tick) {
         uint64_t ticks = g_sat_utc_filetime +
@@ -2012,6 +2047,7 @@ void usb_dvbs2_engine_get_status(usb_dvbs2_engine_status *status)
     status->fec_locked = dtv_atomic_get(&g_status_fec);
     status->frame_locked = dtv_atomic_get(&g_status_frame);
     status->snr_x100 = dtv_atomic_get(&g_status_snr_x100);
+    status->rf_agc = dtv_atomic_get(&g_status_rf_agc);
     status->symbol_rate_hz = dtv_atomic_get(&g_status_sr_hz);
     status->cam_state = (int)camd_status.state;
     snprintf(status->cam_message, sizeof(status->cam_message), "%s",

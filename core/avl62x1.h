@@ -26,6 +26,9 @@ typedef struct avl62x1_signal_status {
     uint8_t frame_locked;
     int16_t snr_db_x100;
     uint32_t symbol_rate_hz;
+    /* RF AGC word: low = strong signal (AVL62X1_GetSignalStrength maps
+     * 25000..65000 to 100..0 %). */
+    uint16_t rf_agc;
 } avl62x1_signal_status;
 
 typedef struct avl62x1_ts_config {

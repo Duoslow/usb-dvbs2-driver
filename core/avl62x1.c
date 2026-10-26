@@ -55,6 +55,7 @@
 #define AVL_REG_FEC_LOCK            0x00040au
 #define AVL_REG_FRAME_LOCK          0x00040bu
 #define AVL_REG_SNR_DB_X100         0x000412u
+#define AVL_REG_RF_AGC              0x0000e8u
 #define AVL_REG_SYMBOL_RATE         0x00041cu
 
 #define AVL_REG_TS_FORMAT           0xa00209u
@@ -489,7 +490,9 @@ int avl62x1_get_signal_status(it9300 *bridge, uint8_t addr,
         (rc = avl62x1_read16(bridge, addr, AVL_REG_SNR_DB_X100,
                              &snr)) != 0 ||
         (rc = avl62x1_read32(bridge, addr, AVL_REG_SYMBOL_RATE,
-                             &status->symbol_rate_hz)) != 0)
+                             &status->symbol_rate_hz)) != 0 ||
+        (rc = avl62x1_read16(bridge, addr, AVL_REG_RF_AGC,
+                             &status->rf_agc)) != 0)
         return rc;
     status->locked = status->locked != 0;
     status->fec_locked = status->fec_locked != 0;

@@ -410,6 +410,11 @@ int it9300_identify(it9300 *b)
 
 int it9300_bridge_init(it9300 *b)
 {
+    return it9300_bridge_init_power(b, 4 /* GPIO5 */);
+}
+
+int it9300_bridge_init_power(it9300 *b, int power_gpio_idx)
+{
     int ret = 0;
     /* Assumes USB high speed (512-byte bulk). */
     uint16_t frame_size = 816u * 188u / 4u;   /* = 38352 */
@@ -462,13 +467,26 @@ int it9300_bridge_init(it9300 *b)
     it9300_msleep(8);
     ret |= it9300_wr_reg(b, 0xda5a, 0x1F);            /* ts_fail_ignore */
 
-    /* GPIO5 switches on the external tuner/LNB power rail. A USB cold boot
+    /* The power GPIO (GPIO5 on the Hiremco, GPIO14 on the Kanky Link)
+     * switches on the external tuner/LNB power rail. A USB cold boot
      * clears it, so the GPIO2 demod reset alone boots the firmware but
      * leaves the RF path dead. */
-    ret |= it9300_gpio_set(b, 4 /* GPIO5 */, 1);
+    ret |= it9300_gpio_set(b, power_gpio_idx, 1);
     it9300_msleep(100);
 
     return ret ? -11 : 0;
+}
+
+/* libdvb_usb_phy.so IT9300_initialize (Kanky Link): cleared before the
+ * firmware download; without it the bridge drops off the bus at boot. */
+int it9300_preboot_clear(it9300 *b)
+{
+    int ret = 0;
+    ret |= it9300_wr_reg(b, 0x4976, 0x00);
+    ret |= it9300_wr_reg(b, 0x4bfb, 0x00);
+    ret |= it9300_wr_reg(b, 0x4978, 0x00);
+    ret |= it9300_wr_reg(b, 0x4977, 0x00);
+    return ret ? -1 : 0;
 }
 
 int it9300_demod_power(it9300 *b)

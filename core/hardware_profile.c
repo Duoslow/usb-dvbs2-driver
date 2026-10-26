@@ -13,7 +13,7 @@ static const dtv_hardware_profile g_profiles[] = {
         DTV_BRIDGE_IT9303, DTV_DEMOD_AVL62X1, DTV_TUNER_RDA5815M,
         "firmware/hiremco-it9303.fw",
         "firmware/hiremco-avl62x1.fw",
-        3, 0x14, 0x0c, 1
+        3, 0x14, 0x0c, 1, 0, 0, 0, 4
     },
     {
         DTV_HARDWARE_KANKY_IT9303_AVL6261_RDA5815M,
@@ -23,7 +23,7 @@ static const dtv_hardware_profile g_profiles[] = {
         DTV_BRIDGE_IT9303, DTV_DEMOD_AVL62X1, DTV_TUNER_RDA5815M,
         "firmware/kanky-it9303.fw",
         "firmware/kanky-avl62x1.fw",
-        3, 0x14, 0x0c, 1
+        3, 0x14, 0x0c, 1, 1, 1, 1, 13
     }
 };
 

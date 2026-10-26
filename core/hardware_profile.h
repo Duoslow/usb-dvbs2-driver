@@ -33,6 +33,14 @@ typedef struct dtv_hardware_profile {
     uint8_t demod_i2c_address;
     uint8_t tuner_i2c_address;
     uint8_t demod_reset_gpio;
+    /* The bridge resets itself after the firmware boot unless these
+     * registers are cleared first (it9300_preboot_clear). */
+    uint8_t bridge_preboot_clear;
+    uint8_t demod_spectrum_inverted;
+    /* Kanky tuner start-up: chip-id selected tables, loop-through on. */
+    uint8_t tuner_kanky_init;
+    /* Bridge GPIO index (0 = GPIO1) of the tuner/LNB power rail. */
+    uint8_t power_gpio;
 } dtv_hardware_profile;
 
 const dtv_hardware_profile *dtv_hardware_profile_by_id(int id);

@@ -598,10 +598,10 @@ static int parse_status_reply(usb_dvbs2_status *out)
             available = sizeof(reply) - 1;
         read_size = dtv_ipc_read(g_daemon_pipe, reply, available);
         if (read_size > 0) {
-            long locked, fec, frame, snr, sr;
+            long locked, fec, frame, snr, sr, agc = 0xffff;
             reply[read_size] = 0;
-            if (sscanf(reply, "STATUS %ld %ld %ld %ld %ld",
-                       &locked, &fec, &frame, &snr, &sr) == 5) {
+            if (sscanf(reply, "STATUS %ld %ld %ld %ld %ld %ld",
+                       &locked, &fec, &frame, &snr, &sr, &agc) >= 5) {
                 char *metadata = strchr(reply, 9);   /* tab */
                 memset(out, 0, sizeof(*out));
                 out->locked = locked != 0;
@@ -609,6 +609,7 @@ static int parse_status_reply(usb_dvbs2_status *out)
                 out->frame_locked = frame != 0;
                 out->snr_x100 = (int)snr;
                 out->symbol_rate_hz = sr > 0 ? (unsigned)sr : 0;
+                out->rf_agc = (unsigned)agc & 0xffffu;
                 if (metadata) {
                     /* Seven programme fields, then the CAM state and its
                      * message. An older daemon sends only the seven. */

@@ -170,12 +170,12 @@ static void print_status(const usb_dvbs2_status *status)
     int gaps = 0, failures = 0, overflow = 0;
     int snr = status->snr_x100;
     usb_dvbs2_loss_counters(&gaps, &failures, &overflow);
-    print_line("status: carrier %s, fec %s, frame %s, snr %s%d.%02d dB, %u Bd\n",
+    print_line("status: carrier %s, fec %s, frame %s, snr %s%d.%02d dB, %u Bd, agc %u\n",
                status->locked ? "locked" : "unlocked",
                status->fec_locked ? "locked" : "unlocked",
                status->frame_locked ? "locked" : "unlocked",
                snr < 0 ? "-" : "", abs(snr) / 100, abs(snr) % 100,
-               status->symbol_rate_hz);
+               status->symbol_rate_hz, status->rf_agc);
     if (status->date[0] || status->time[0])
         print_line("status: satellite clock %s %s\n", status->date,
                    status->time);

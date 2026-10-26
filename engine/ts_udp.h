@@ -13,20 +13,27 @@
  * bytes line up. Returns (size_t)-1 when there is none. */
 size_t find_ts_sync(const uint8_t *data, size_t size, size_t start);
 
-/* Datagrams carry seven packets, the usual MPEG-TS-over-UDP payload.
+/* Datagrams carry up to UDP_TS_PACKETS packets. Seven is the usual MPEG-TS
+ * over UDP payload for a network; DuoTV reads the stream on the same host,
+ * where 56 (10.5 KB) means eight times fewer datagrams to handle. A datagram
+ * also leaves after UDP_TS_MAX_WAIT_MS, so slow services (radio) do not wait.
  *
  * A second destination (has_alt) lets the daemon send to two ports so the
  * player can move to the other on a channel change: on Windows two sockets
  * may bind the same UDP port but only the first receives, so with one port
  * a new player saw nothing until the old one closed. */
+#define UDP_TS_PACKETS 56
+#define UDP_TS_MAX_WAIT_MS 40
+
 typedef struct udp_ts_writer {
     dtv_socket socket_handle;
     struct sockaddr_in destination;
     struct sockaddr_in destination_alt;
     int has_alt;
-    uint8_t datagram[7 * 188];
+    uint8_t datagram[UDP_TS_PACKETS * 188];
     size_t size;
     unsigned long packets;
+    uint32_t first_tick;        /* when the oldest waiting packet came in */
 } udp_ts_writer;
 
 /* A programme normally has a handful of elementary streams, but

@@ -85,6 +85,8 @@ int it9300_identify(it9300 *b);
 /* Bridge init AFTER the firmware (kernel it930x_init): I2C master clocks,
  * TS port (ts0), EP4 bulk, frame/packet size, power config. */
 int it9300_bridge_init(it9300 *b);
+int it9300_bridge_init_power(it9300 *b, int power_gpio_idx);
+int it9300_preboot_clear(it9300 *b);
 
 /* Demod power cycle: GPIO1 LOW (reset) -> 30 ms -> HIGH -> 150 ms boot
  * wait. The demod does not answer on I2C before this completes. */

@@ -8,6 +8,7 @@
 #define RDA5815M_I2C_ADDR 0x0c
 
 int rda5815m_init(it9300 *bridge, uint8_t addr);
+int rda5815m_init_kanky(it9300 *bridge, uint8_t addr, uint16_t *chip_id);
 int rda5815m_tune(it9300 *bridge, uint8_t addr,
                   uint32_t frequency_khz, uint32_t symbol_rate_ksps,
                   int loop_through);

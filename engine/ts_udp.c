@@ -1,4 +1,5 @@
 #include "ts_udp.h"
+#include "dtv_platform.h"
 
 #include <string.h>
 
@@ -37,10 +38,13 @@ int udp_ts_flush(udp_ts_writer *writer)
 
 int udp_ts_send_packet(udp_ts_writer *writer, const uint8_t *packet)
 {
+    if (writer->size == 0)
+        writer->first_tick = dtv_tick32();
     memcpy(writer->datagram + writer->size, packet, 188);
     writer->size += 188;
     ++writer->packets;
-    return writer->size == sizeof(writer->datagram)
+    return (writer->size == sizeof(writer->datagram) ||
+            dtv_tick32() - writer->first_tick >= UDP_TS_MAX_WAIT_MS)
                ? udp_ts_flush(writer) : 0;
 }
 

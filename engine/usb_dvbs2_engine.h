@@ -120,6 +120,7 @@ typedef struct usb_dvbs2_engine_status {
     long frame_locked;
     long snr_x100;
     long symbol_rate_hz;
+    long rf_agc;
     /* Satellite clock (TDT/TOT) and the service's now and next (EIT);
      * empty until the stream has carried them. */
     char date[16];

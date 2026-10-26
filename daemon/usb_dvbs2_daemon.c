@@ -192,10 +192,10 @@ static int handle_line(char *line)
         usb_dvbs2_engine_get_status(&status);
         length = snprintf(
             reply, sizeof(reply),
-            "STATUS %ld %ld %ld %ld %ld"
+            "STATUS %ld %ld %ld %ld %ld %ld"
             "\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%d\t%s\n",
             status.locked, status.fec_locked, status.frame_locked,
-            status.snr_x100, status.symbol_rate_hz,
+            status.snr_x100, status.symbol_rate_hz, status.rf_agc,
             status.date, status.time, status.now_start, status.now_end,
             status.now_title, status.next_start, status.next_title,
             status.cam_state, status.cam_message);

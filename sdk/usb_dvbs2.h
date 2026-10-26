@@ -28,6 +28,8 @@ typedef struct usb_dvbs2_status {
     int frame_locked;
     int snr_x100;
     unsigned symbol_rate_hz;
+    /* RF AGC word (low = strong); 0xffff when unknown or an older daemon. */
+    unsigned rf_agc;
     /* Clock from the satellite (TDT); may be empty. */
     char date[16];
     char time[16];
